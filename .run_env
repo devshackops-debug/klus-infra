@@ -26,4 +26,4 @@ VITE_API_BASE_URL=http://backend:8080/umsebenzi-api/v1
 
 
 # Shared Volume
-SHARED_VOLUME_PATH=/shared
+SHARED_VOLUME_PATH=/home/svc_user/apps/shared
