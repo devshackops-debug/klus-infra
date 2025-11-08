@@ -1,0 +1,29 @@
+# Shared environment variables
+PROJECT_NAME=fast-umsebenzi-dev
+NETWORK_NAME=fast-umsebenzi_net
+
+# Database
+POSTGRES_USER=dev_app_user
+POSTGRES_PASSWORD=dev_app_password
+POSTGRES_DB=umsebenzi_db
+POSTGRES_PORT=4352
+
+
+# Backend
+SPRING_PROFILES_ACTIVE=dev
+BACKEND_PORT=9091
+
+# Frontend
+FRONTEND_PORT=3000
+VITE_FIREBASE_API_KEY=AIzaSyBWugvrASOIIr7_ZbWWQxIzX7ZNQO3J74w
+VITE_FIREBASE_AUTH_DOMAIN=fast-umsebenzi.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=fast-umsebenzi
+VITE_FIREBASE_STORAGE_BUCKET=fast-umsebenzi.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=917343469421
+VITE_FIREBASE_APP_ID=1:917343469421:web:ec04391eee45361496e464
+VITE_FIREBASE_MEASUREMENT_ID=G-BZE2BYF5GW
+VITE_API_BASE_URL=http://backend:8080/umsebenzi-api/v1
+
+
+# Shared Volume
+SHARED_VOLUME_PATH=/shared

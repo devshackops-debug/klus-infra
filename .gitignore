@@ -1,0 +1,15 @@
+*.tfstate
+*.tfstate.*
+crash.log
+../klus-terraform.tfvars
+override.tf
+.terraform/
+.terraform.lock.hcl
+terraform.tfstate.backup
+terraform.tfstate.d/
+/terraform.tfstate
+# Sensitive
+*.pem
+*.key
+
+/.run_env

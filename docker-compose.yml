@@ -1,0 +1,31 @@
+name: ${PROJECT_NAME}
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: ${PROJECT_NAME}_db
+    env_file: .run_env
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - shared_data:${SHARED_VOLUME_PATH}
+    networks:
+      - fast-umsebenzi_net
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+
+
+networks:
+  fast-umsebenzi_net:
+    driver: bridge
+
+volumes:
+  db_data:
+  shared_data:
