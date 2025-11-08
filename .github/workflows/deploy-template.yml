@@ -8,15 +8,15 @@ on:
         required: true
         type: string
       build_context:
-        description: "Path to build context (e.g., ./) restart docker"
+        description: "Path to build context (e.g., ./api or ./frontend)"
         required: true
         type: string
       docker_port:
-        description: "Port to expose to and some"
+        description: "Container port to expose"
         required: true
         type: string
       network_name:
-        description: "Docker network to use"
+        description: "Docker network name on EC2"
         required: false
         type: string
         default: fast-net
@@ -25,9 +25,15 @@ on:
         required: true
         type: string
       repo_name:
+        description: "Full ECR repo URL (e.g., 123456789012.dkr.ecr.af-south-1.amazonaws.com)"
+        type: string
+        required: true
+      image_name:
+        description: "Image name within the repository"
         type: string
         required: true
       environment_name:
+        description: "GitHub environment to pull secrets from"
         type: string
         required: true
 
@@ -42,8 +48,6 @@ on:
         required: true
       EC2_SSH_KEY:
         required: true
-      ECR_ROOT:
-        required: true
 
 env:
   AWS_REGION: af-south-1
@@ -52,9 +56,10 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{inputs.environment_name}}
+    environment: ${{ inputs.environment_name }}
+
     steps:
-      - name: 🧩 Checkout code
+      - name: 🧩 Checkout repository
         uses: actions/checkout@v4
 
       - name: ⚙️ Configure AWS credentials
@@ -68,19 +73,17 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-
-
       - name: 🏗️ Build Docker image
         run: |
           IMAGE_TAG=${{ github.sha }}
-          IMAGE_NAME=${{ inputs.repo_name }}
-          FULL_IMAGE="${{secrets.ECR_ROOT }}/${IMAGE_NAME}:${IMAGE_TAG}"
+          IMAGE_NAME=${{ inputs.image_name }}
+          FULL_IMAGE="${{ inputs.repo_name }}/${IMAGE_NAME}:${IMAGE_TAG}"
 
           echo "🧱 Building image: $FULL_IMAGE"
           docker build -t $IMAGE_NAME:${IMAGE_TAG} ${{ inputs.build_context }}
 
           docker tag $IMAGE_NAME:${IMAGE_TAG} $FULL_IMAGE
-          docker tag $IMAGE_NAME:${IMAGE_TAG} ${{ secrets.ECR_ROOT }}/${IMAGE_NAME}:latest
+          docker tag $IMAGE_NAME:${IMAGE_TAG} ${{ inputs.repo_name }}/${IMAGE_NAME}:latest
 
           echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
           echo "FULL_IMAGE=${FULL_IMAGE}" >> $GITHUB_ENV
@@ -88,46 +91,53 @@ jobs:
       - name: 🚀 Push image to ECR
         run: |
           docker push ${{ env.FULL_IMAGE }}
-          docker push ${{ secrets.ECR_ROOT }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:latest
+          docker push ${{ inputs.repo_name }}/${{ inputs.image_name }}:latest
 
       - name: 🔐 Add SSH key
         uses: webfactory/ssh-agent@v0.8.0
         with:
-          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+          ssh-private-key: |
+            ${{ secrets.EC2_SSH_KEY }}
 
       - name: 🚀 Deploy on EC2
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+          echo "🔗 Connecting to EC2..."
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes \
+            -t ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} \
+            APP_NAME=${{ inputs.app_name }} \
+            IMAGE_TAG=${{ github.sha }} \
+            NETWORK_NAME=${{ inputs.network_name }} \
+            IMAGE="${{ inputs.repo_name }}/${{ inputs.image_name }}:${{ github.sha }}" \
+            DOCKER_PORT=${{ inputs.docker_port }} \
+            ENV_FILE=${{ inputs.env_file_path }} \
+          'bash -s' <<'EOF'
             set -e
-            APP_NAME="${{ inputs.app_name }}"
-            IMAGE_TAG="${{ env.IMAGE_TAG }}"
-            NETWORK_NAME="${{ inputs.network_name }}"
-            IMAGE="${{ secrets.ECR_ROOT }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:${{ env.IMAGE_TAG }}"
+            trap 'echo "❌ Deployment failed on line $LINENO"' ERR
 
             echo "📂 Preparing /home/svc_user/deployments"
             mkdir -p /home/svc_user/deployments
             cd /home/svc_user/deployments
 
+            echo "🔍 Checking Docker connectivity..."
+            docker info >/dev/null 2>&1 || { echo "❌ Docker not running or permission issue"; exit 1; }
+
             echo "📦 Pulling image $IMAGE"
-            docker pull $IMAGE
+            docker pull "$IMAGE"
 
             echo "🧹 Stopping old container..."
-            docker stop $APP_NAME || true
-            docker rm $APP_NAME || true
+            docker stop "$APP_NAME" || true
+            docker rm "$APP_NAME" || true
 
-            echo "🔧 Ensuring network exists..."
-            docker network create $NETWORK_NAME || true
+            echo "🔧 Ensuring Docker network exists..."
+            docker network create "$NETWORK_NAME" || true
 
-            echo "🚀 Running $APP_NAME..."
+            echo "🚀 Starting container $APP_NAME"
             docker run -d \
-              --name $APP_NAME \
-              --network $NETWORK_NAME \
-              --env-file ${{ inputs.env_file_path }} \
-              -p ${{ inputs.docker_port }}:${{ inputs.docker_port }} \
-              $IMAGE
+              --name "$APP_NAME" \
+              --network "$NETWORK_NAME" \
+              --env-file "$ENV_FILE" \
+              -p "$DOCKER_PORT:$DOCKER_PORT" \
+              "$IMAGE"
 
-            echo "🧹 Cleaning up unused Docker images..."
+            echo "🧹 Cleaning up old images..."
             docker image prune -af || true
-        
-            echo "✅ Deployment complete!"
-          EOF
