@@ -67,7 +67,7 @@ jobs:
           docker build -t $IMAGE_NAME:${IMAGE_TAG} ${{ inputs.build_context }}
 
           docker tag $IMAGE_NAME:${IMAGE_TAG} $FULL_IMAGE
-          docker tag $IMAGE_NAME:${IMAGE_TAG} ${{ steps.ecr.outputs.registry }}/${IMAGE_NAME}:latest
+          docker tag $IMAGE_NAME:${IMAGE_TAG} ${{ secrets.ECR_ROOT }}/${IMAGE_NAME}:latest
 
           echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
           echo "FULL_IMAGE=${FULL_IMAGE}" >> $GITHUB_ENV
@@ -75,7 +75,7 @@ jobs:
       - name: 🚀 Push image to ECR
         run: |
           docker push ${{ env.FULL_IMAGE }}
-          docker push ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:latest
+          docker push ${{ secrets.ECR_ROOT }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:latest
 
       - name: 🔐 Add SSH key
         uses: webfactory/ssh-agent@v0.8.0
@@ -89,10 +89,7 @@ jobs:
             APP_NAME="${{ inputs.app_name }}"
             IMAGE_TAG="${{ env.IMAGE_TAG }}"
             NETWORK_NAME="${{ inputs.network_name }}"
-            IMAGE="${{ steps.ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:${{ env.IMAGE_TAG }}"
-
-            echo "🔐 Logging in to ECR..."
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}
+            IMAGE="${{ secrets.ECR_ROOT }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:${{ env.IMAGE_TAG }}"
 
             echo "📂 Preparing /home/svc_user/deployments"
             mkdir -p /home/svc_user/deployments
@@ -118,8 +115,6 @@ jobs:
 
             echo "🧹 Cleaning up unused Docker images..."
             docker image prune -af || true
-          
-          
-          
+        
             echo "✅ Deployment complete!"
           EOF
