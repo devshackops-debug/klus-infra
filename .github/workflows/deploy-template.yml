@@ -150,6 +150,7 @@ jobs:
               --name "$APP_NAME" \
               --network "$NETWORK_NAME" \
               --env-file "$ENV_FILE" \
+              -v shared_volume:/shared \
               -p "$DOCKER_PORT:$DOCKER_PORT" \
               "$IMAGE"
           
