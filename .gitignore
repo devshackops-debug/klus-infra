@@ -15,3 +15,4 @@ terraform.tfstate.d/
 /.run_env
 
 .idea/*
+.env_vars
