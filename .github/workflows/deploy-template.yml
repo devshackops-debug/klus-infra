@@ -141,3 +141,6 @@ jobs:
 
             echo "🧹 Cleaning up old images..."
             docker image prune -af || true
+
+            echo "✅ Deployment complete!"
+          EOF
