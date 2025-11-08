@@ -8,11 +8,11 @@ on:
         required: true
         type: string
       build_context:
-        description: "Path to build context (e.g., ./)"
+        description: "Path to build context (e.g., ./) restart docker"
         required: true
         type: string
       docker_port:
-        description: "Port to expose"
+        description: "Port to expose to and some"
         required: true
         type: string
       network_name:
@@ -54,17 +54,6 @@ jobs:
     steps:
       - name: 🧩 Checkout code
         uses: actions/checkout@v4
-
-      - name: ⚙️ Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: 🔐 Login to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
 
       - name: 🏗️ Build Docker image
         run: |
@@ -127,9 +116,8 @@ jobs:
 
             echo "🧹 Cleaning up unused Docker images..."
             docker image prune -af || true
-
-            echo "👋 Logging out of ECR..."
-            docker logout ${{ steps.ecr.outputs.registry }}
-
+          
+          
+          
             echo "✅ Deployment complete!"
           EOF
