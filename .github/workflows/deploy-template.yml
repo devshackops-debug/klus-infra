@@ -113,34 +113,52 @@ jobs:
           'bash -s' <<'EOF'
             set -e
             trap 'echo "❌ Deployment failed on line $LINENO"' ERR
-
+          
             echo "📂 Preparing /home/svc_user/deployments"
             mkdir -p /home/svc_user/deployments
             cd /home/svc_user/deployments
-
-            echo "🔍 Checking Docker connectivity..."
-            docker info >/dev/null 2>&1 || { echo "❌ Docker not running or permission issue"; exit 1; }
-
-            echo "📦 Pulling image $IMAGE"
-            docker pull "$IMAGE"
-
-            echo "🧹 Stopping old container..."
-            docker stop "$APP_NAME" || true
-            docker rm "$APP_NAME" || true
-
-            echo "🔧 Ensuring Docker network exists..."
-            docker network create "$NETWORK_NAME" || true
-
-            echo "🚀 Starting container $APP_NAME"
-            docker run -d \
-              --name "$APP_NAME" \
-              --network "$NETWORK_NAME" \
-              --env-file "$ENV_FILE" \
-              -p "$DOCKER_PORT:$DOCKER_PORT" \
-              "$IMAGE"
-
-            echo "🧹 Cleaning up old images..."
-            docker image prune -af || true
-
-            echo "✅ Deployment complete!"
+          
+            echo "🔍 Checking Docker status..."
+            if ! systemctl is-active --quiet docker; then
+              echo "🔧 Starting Docker daemon..."
+              sudo systemctl start docker
+              sleep 5
+            fi
+          
+            echo "🔐 Fixing Docker socket permissions..."
+            sudo chown root:docker /var/run/docker.sock || true
+            sudo chmod 660 /var/run/docker.sock || true
+          
+            echo "🔁 Refreshing docker group membership..."
+            newgrp docker <<'INNER'
+              echo "🔍 Checking Docker connectivity..."
+              if ! docker info >/dev/null 2>&1; then
+                echo "❌ Docker not accessible — permission issue or daemon not running"
+                exit 1
+              fi
+          
+              echo "📦 Pulling image $IMAGE"
+              docker pull "$IMAGE"
+          
+              echo "🧹 Stopping old container..."
+              docker stop "$APP_NAME" || true
+              docker rm "$APP_NAME" || true
+          
+              echo "🔧 Ensuring Docker network exists..."
+              docker network create "$NETWORK_NAME" || true
+          
+              echo "🚀 Starting container $APP_NAME..."
+              docker run -d \
+                --name "$APP_NAME" \
+                --network "$NETWORK_NAME" \
+                --env-file "$ENV_FILE" \
+                -p "$DOCKER_PORT:$DOCKER_PORT" \
+                "$IMAGE"
+          
+              echo "🧹 Cleaning up old images..."
+              docker image prune -af || true
+          
+              echo "✅ Deployment complete!"
+            INNER
           EOF
+     
