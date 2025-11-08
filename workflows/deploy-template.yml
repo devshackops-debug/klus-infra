@@ -1,0 +1,129 @@
+name: Reusable ECR Deploy Template
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: "App name (e.g., frontend, backend)"
+        required: true
+        type: string
+      build_context:
+        description: "Path to build context (e.g., ./)"
+        required: true
+        type: string
+      docker_port:
+        description: "Port to expose"
+        required: true
+        type: string
+      network_name:
+        description: "Docker network to use"
+        required: false
+        type: string
+        default: fast-net
+      env_file_path:
+        description: "Path to .run_env on EC2"
+        required: true
+        type: string
+
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+      EC2_HOST:
+        required: true
+      EC2_USER:
+        required: true
+      EC2_SSH_KEY:
+        required: true
+
+env:
+  AWS_REGION: af-south-1
+  PROJECT_NAME: fast-umsebenzi
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 🧩 Checkout code
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔐 Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: 🏗️ Build Docker image
+        run: |
+          IMAGE_TAG=${{ github.sha }}
+          IMAGE_NAME=${{ env.PROJECT_NAME }}-${{ inputs.app_name }}
+          FULL_IMAGE="${{ steps.ecr.outputs.registry }}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+          echo "🧱 Building image: $FULL_IMAGE"
+          docker build -t $IMAGE_NAME:${IMAGE_TAG} ${{ inputs.build_context }}
+
+          docker tag $IMAGE_NAME:${IMAGE_TAG} $FULL_IMAGE
+          docker tag $IMAGE_NAME:${IMAGE_TAG} ${{ steps.ecr.outputs.registry }}/${IMAGE_NAME}:latest
+
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "FULL_IMAGE=${FULL_IMAGE}" >> $GITHUB_ENV
+
+      - name: 🚀 Push image to ECR
+        run: |
+          docker push ${{ env.FULL_IMAGE }}
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:latest
+
+      - name: 🔐 Add SSH key
+        uses: webfactory/ssh-agent@v0.8.0
+        with:
+          ssh-private-key: ${{ secrets.EC2_SSH_KEY }}
+
+      - name: 🚀 Deploy on EC2
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
+            set -e
+            APP_NAME="${{ inputs.app_name }}"
+            IMAGE_TAG="${{ env.IMAGE_TAG }}"
+            NETWORK_NAME="${{ inputs.network_name }}"
+            IMAGE="${{ steps.ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:${{ env.IMAGE_TAG }}"
+
+            echo "🔐 Logging in to ECR..."
+            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}
+
+            echo "📂 Preparing /home/svc_user/deployments"
+            mkdir -p /home/svc_user/deployments
+            cd /home/svc_user/deployments
+
+            echo "📦 Pulling image $IMAGE"
+            docker pull $IMAGE
+
+            echo "🧹 Stopping old container..."
+            docker stop $APP_NAME || true
+            docker rm $APP_NAME || true
+
+            echo "🔧 Ensuring network exists..."
+            docker network create $NETWORK_NAME || true
+
+            echo "🚀 Running $APP_NAME..."
+            docker run -d \
+              --name $APP_NAME \
+              --network $NETWORK_NAME \
+              --env-file ${{ inputs.env_file_path }} \
+              -p ${{ inputs.docker_port }}:${{ inputs.docker_port }} \
+              $IMAGE
+
+            echo "🧹 Cleaning up unused Docker images..."
+            docker image prune -af || true
+
+            echo "👋 Logging out of ECR..."
+            docker logout ${{ steps.ecr.outputs.registry }}
+
+            echo "✅ Deployment complete!"
+          EOF
