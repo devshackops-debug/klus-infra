@@ -62,3 +62,13 @@ resource "aws_vpc_security_group_egress_rule" "all_out" {
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
 }
+
+# SSH for GitHub Actions
+resource "aws_vpc_security_group_ingress_rule" "ssh_github" {
+  security_group_id = aws_security_group.dev_server.id
+  description       = "Allow SSH from GitHub Actions runners"
+  from_port         = 22
+  to_port           = 22
+  ip_protocol       = "tcp"
+  cidr_ipv4         = "140.82.0.0/16"
+}
