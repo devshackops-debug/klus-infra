@@ -66,25 +66,6 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: 🏗️ Build Docker image
-        run: |
-          IMAGE_TAG=${{ github.sha }}
-          IMAGE_NAME=${{ inputs.repo_name }}
-          FULL_IMAGE="${{ steps.ecr.outputs.registry }}/${IMAGE_NAME}:${IMAGE_TAG}"
-
-          echo "🧱 Building image: $FULL_IMAGE"
-          docker build -t $IMAGE_NAME:${IMAGE_TAG} ${{ inputs.build_context }}
-
-          docker tag $IMAGE_NAME:${IMAGE_TAG} $FULL_IMAGE
-          docker tag $IMAGE_NAME:${IMAGE_TAG} ${{ steps.ecr.outputs.registry }}/${IMAGE_NAME}:latest
-
-          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
-          echo "FULL_IMAGE=${FULL_IMAGE}" >> $GITHUB_ENV
-
-      - name: 🚀 Push image to ECR
-        run: |
-          docker push ${{ env.FULL_IMAGE }}
-          docker push ${{ steps.ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:latest
 
       - name: 🔐 Add SSH key
         uses: webfactory/ssh-agent@v0.8.0
@@ -96,9 +77,11 @@ jobs:
           ssh -o StrictHostKeyChecking=no ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
             set -e
             APP_NAME="${{ inputs.app_name }}"
+          
             IMAGE_TAG="${{ env.IMAGE_TAG }}"
             NETWORK_NAME="${{ inputs.network_name }}"
-            IMAGE="${{ steps.ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ inputs.app_name }}:${{ env.IMAGE_TAG }}"
+          
+            IMAGE="408595458212.dkr.ecr.af-south-1.amazonaws.com/fast-umsebenzi-dev-backend:ddb88475c6a4b09191a98aec73129f479b85a705"
 
             echo "🔐 Logging in to ECR..."
             aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.ecr.outputs.registry }}
