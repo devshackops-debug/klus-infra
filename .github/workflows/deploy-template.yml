@@ -156,7 +156,7 @@ jobs:
               --network "$NETWORK_NAME" \
               --env-file "$ENV_FILE" \
               -v shared_volume:/shared \
-              -p "APP_EXTERNAL_PORT:$DOCKER_PORT" \
+              -p "$APP_EXTERNAL_PORT:$DOCKER_PORT" \
               "$IMAGE"
           
             echo "🧹 Cleaning up old images..."
