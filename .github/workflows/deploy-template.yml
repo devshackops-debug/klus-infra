@@ -27,6 +27,9 @@ on:
       repo_name:
         type: string
         required: true
+      environment_name:
+        type: string
+        required: true
 
     secrets:
       AWS_ACCESS_KEY_ID:
@@ -47,7 +50,7 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: dev
+    environment: ${{inputs.environment_name}}
     steps:
       - name: 🧩 Checkout code
         uses: actions/checkout@v4
