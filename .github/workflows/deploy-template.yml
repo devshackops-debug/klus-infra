@@ -110,41 +110,41 @@ jobs:
             IMAGE="${{ inputs.repo_name }}/${{ inputs.image_name }}:${{ github.sha }}" \
             DOCKER_PORT=${{ inputs.docker_port }} \
             ENV_FILE=${{ inputs.env_file_path }} \
+            AWS_REGION=${{ env.AWS_REGION }} \
+            REPO_NAME=${{ inputs.repo_name }} \
           'bash -s' <<'EOF'
             set -e
             trap 'echo "❌ Deployment failed on line $LINENO"' ERR
-
+          
             echo "📂 Preparing /home/svc_user/deployments"
             mkdir -p /home/svc_user/deployments
             cd /home/svc_user/deployments
-
+          
             echo "🔍 Checking Docker daemon..."
             if ! sudo systemctl is-active --quiet docker; then
               echo "🔧 Starting Docker daemon..."
               sudo systemctl start docker
               sleep 5
             fi
-
+          
             echo "🔐 Fixing Docker socket permissions..."
             sudo chown root:docker /var/run/docker.sock || true
             sudo chmod 660 /var/run/docker.sock || true
-
-            echo "🔍 Checking Docker connectivity..."
-            if ! sudo docker info >/dev/null 2>&1; then
-              echo "❌ Docker not accessible — permission issue or daemon not running"
-              exit 1
-            fi
-
+          
+            echo "🔐 Logging into Amazon ECR..."
+            aws ecr get-login-password --region "$AWS_REGION" \
+              | sudo docker login --username AWS --password-stdin "$REPO_NAME"
+          
             echo "📦 Pulling image $IMAGE"
             sudo docker pull "$IMAGE"
-
+          
             echo "🧹 Stopping old container..."
             sudo docker stop "$APP_NAME" || true
             sudo docker rm "$APP_NAME" || true
-
+          
             echo "🔧 Ensuring Docker network exists..."
             sudo docker network create "$NETWORK_NAME" || true
-
+          
             echo "🚀 Starting container $APP_NAME..."
             sudo docker run -d \
               --name "$APP_NAME" \
@@ -152,9 +152,12 @@ jobs:
               --env-file "$ENV_FILE" \
               -p "$DOCKER_PORT:$DOCKER_PORT" \
               "$IMAGE"
-
+          
             echo "🧹 Cleaning up old images..."
             sudo docker image prune -af || true
-
+          
+            echo "👋 Logging out of ECR..."
+            sudo docker logout "$REPO_NAME" || true
+          
             echo "✅ Deployment complete!"
           EOF
