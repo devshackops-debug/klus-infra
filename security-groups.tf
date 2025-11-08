@@ -10,15 +10,6 @@ resource "aws_security_group" "dev_server" {
 }
 
 
-resource "aws_vpc_security_group_ingress_rule" "ssh" {
-  security_group_id = aws_security_group.dev_server.id
-  description       = "Allow SSH"
-  from_port         = 22
-  to_port           = 22
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.allow_ssh_from[0]
-}
-
 resource "aws_vpc_security_group_ingress_rule" "http" {
   security_group_id = aws_security_group.dev_server.id
   description       = "Allow HTTP"

@@ -29,7 +29,11 @@ output "ecr_frontend_repo_url" {
   value       = aws_ecr_repository.frontend.repository_url
 }
 
-output "server_id" {
+output "server_public_address" {
   value       = aws_instance.dev_server.public_ip
   description = "Server public ip address"
+}
+output "server_public_dns" {
+  value = aws_instance.dev_server.public_dns
+  description = "Serever publice Ip address"
 }

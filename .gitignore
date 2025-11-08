@@ -13,3 +13,5 @@ terraform.tfstate.d/
 *.key
 
 /.run_env
+
+.idea/*
