@@ -42,6 +42,8 @@ on:
         required: true
       EC2_SSH_KEY:
         required: true
+      ECR_ROOT:
+        required: true
 
 env:
   AWS_REGION: af-south-1
@@ -59,7 +61,7 @@ jobs:
         run: |
           IMAGE_TAG=${{ github.sha }}
           IMAGE_NAME=${{ inputs.repo_name }}
-          FULL_IMAGE="${{ steps.ecr.outputs.registry }}/${IMAGE_NAME}:${IMAGE_TAG}"
+          FULL_IMAGE="${{secrets.ECR_ROOT }}/${IMAGE_NAME}:${IMAGE_TAG}"
 
           echo "🧱 Building image: $FULL_IMAGE"
           docker build -t $IMAGE_NAME:${IMAGE_TAG} ${{ inputs.build_context }}
