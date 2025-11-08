@@ -24,6 +24,11 @@ on:
         description: "Path to .run_env on EC2"
         required: true
         type: string
+      environment:
+        description: "Environment to deploy to"
+        required: true
+        type: string
+        default: dev
 
     secrets:
       AWS_ACCESS_KEY_ID:
@@ -44,6 +49,7 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{inputs.environment}}
 
     steps:
       - name: 🧩 Checkout code
